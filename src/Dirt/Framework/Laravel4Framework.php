@@ -23,7 +23,7 @@ class Laravel4Framework extends Framework
      */
     public function getShortcuts()
     {
-    	return array('laravel4', 'laravel', 'l4');
+    	return array('laravel4', 'l4');
     }
 
     /**
@@ -34,7 +34,7 @@ class Laravel4Framework extends Framework
     public function install($project, $progressCallback = null)
     {
         // Download latest version
-        $filename = $this->downloadFile('https://github.com/laravel/laravel/archive/master.zip', $project->getDirectory(), $progressCallback);
+        $filename = $this->downloadFile('https://github.com/laravel/laravel/archive/v4.2.11.zip', $project->getDirectory(), $progressCallback);
 
         // Extract to location
         $this->extractArchive($filename, $project->getDirectory(), $progressCallback);
@@ -178,8 +178,8 @@ class Laravel4Framework extends Framework
     {
         // Define environments
         $validEnvironments = array(
-            'local' => strtolower($project->getName()), // Hostname in vagrant is set to the simple project name
-            'staging' => 'stage' // Staging server hostname
+            'local' => [strtolower($project->getName()), strtolower($project->getName()) . '.local'], // Hostname in vagrant is set to the simple project name
+            'staging' => ['stage'] // Staging server hostname
         );
 
         // Load config file
@@ -192,7 +192,7 @@ class Laravel4Framework extends Framework
                 $line = '';
 
                 foreach ($validEnvironments as $name => $host) {
-                    $line .= "\t" . "'". $name ."' => array('". $host ."')," . "\n";
+                    $line .= "\t" . "'". $name ."' => array('". implode("', '", $host) ."')," . "\n";
                 }
             }
         }

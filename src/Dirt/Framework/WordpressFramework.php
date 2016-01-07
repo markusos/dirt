@@ -45,7 +45,8 @@ class WordpressFramework extends Framework
             '!wp-content/themes/',
             '*.log',
             'sitemap.xml',
-            'sitemap.xml.gz'
+            'sitemap.xml.gz',
+            'public/wp-content/uploads/*'
         );
         file_put_contents($project->getDirectory() . '/public/.gitignore', implode(PHP_EOL, $gitignoreContents));
     }
@@ -77,25 +78,15 @@ class WordpressFramework extends Framework
         $configLines = explode("\n", $sourceConfig);
 
         // Inject extra configuration lines after the WP_DEBUG line
-        $url = '';
-        switch ($environment) {
-            case 'dev':
-                $url = $project->getDevUrl();
-                break;
+        $url = $project->urlForEnvironment($environment);
 
-            case 'staging':
-                $url = $project->getStagingUrl();
-                break;
-
-            case 'production':
-                $url = $project->getProductionUrl();
-                break;
-            
-            default:
-                break;
-        }
+        $simpleProjectName = preg_replace("/[^a-zA-Z]/", '', $project->getName());
+        $prefix = 'eng'. substr($simpleProjectName, 0, 3) . '_';
 
         $lineNo = 1;
+        $debugLineNo = 2;
+        $home_found = false;
+        $siteurl_found = false;
         foreach ($configLines as &$line) {
             if (strpos($line, "define('DB_NAME'") !== FALSE) {
                 $line = "define('DB_NAME', '". $databaseCredentials['database'] ."');";
@@ -106,7 +97,7 @@ class WordpressFramework extends Framework
             } elseif (strpos($line, "define('DB_PASSWORD'") !== FALSE) {
                 $line = "define('DB_PASSWORD', '". $databaseCredentials['password'] ."');";
             } elseif (strpos($line, "\$table_prefix  =") !== FALSE) {
-                $line = "\$table_prefix  = 'eng". substr($project->getName(), 0, 3) ."_';";
+                $line = "\$table_prefix  = '". $prefix ."';";
             } elseif (strpos($line, "define('WP_DEBUG'") !== FALSE) {
                 $enableDebugging = (($environment == 'dev') ? 'true' : 'false');
                 $line = "define('WP_DEBUG', ". $enableDebugging .");";
@@ -131,7 +122,7 @@ class WordpressFramework extends Framework
             ' * WordPress Site URL.',
             ' *',
             ' * This is automatically configured by dirt depending on the environment.',
-            ' * Note that this overrides the URL configured in the database.',
+            ' * Note that this overwrites the URL configured in the database.',
             ' */',
             "define('WP_HOME', '". $url ."');",
             "define('WP_SITEURL', '". $url . (($configDirectory == '/') ? '/core' : '') . "');",
@@ -141,7 +132,8 @@ class WordpressFramework extends Framework
             ' */',
             "define('WP_CACHE', ". (($environment == 'dev') ? 'false' : 'true') .");"
         );
-        if (isset($homeurl_found) && $homeurl_found) {
+
+        if (!$home_found || !$siteurl_found) {
             array_splice($configLines, $debugLineNo, 0, $extraLines);
         }
 
@@ -165,7 +157,6 @@ class WordpressFramework extends Framework
             for ($i = 0; $i < 8; $i++) {
                 $devConfig = preg_replace('/put your unique phrase here/', $this->generateWordPressToken(), $devConfig, 1);
             }
-
             file_put_contents($project->getDirectory() . $configDirectory . 'wp-config.php', $devConfig);
         }
         else
@@ -176,7 +167,6 @@ class WordpressFramework extends Framework
             $configContents = str_replace('"', '\"', $configContents); // Escape quotes
             $configContents = str_replace('`', '\\`', $configContents); // Escape backticks
             $configContents = str_replace('$', '\\$', $configContents); // Escape $
-            
             $response = $ssh->exec('echo -e "'. $configContents .'" > ' . $dir . $configDirectory . 'wp-config.php');
 
             if (strlen($response) != 0) {
